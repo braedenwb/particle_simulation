@@ -6,10 +6,12 @@
 #include <math.h>
 
 #define WIDTH 800
-#define HEIGHT 450
+#define HEIGHT 600
 
 #define FPS 60
-#define PARTICLES_AMOUNT 3000
+#define PARTICLES_AMOUNT 2500
+#define GRAVITY 0.1f
+#define COEFFICIENT_OF_RESTITUTION 0.5f
 
 typedef struct
 {
@@ -19,13 +21,14 @@ typedef struct
     float vy;   // velocity y
 } Particle;
 
-Color colors[] = { RED, GREEN, BLUE, ORANGE, PURPLE, GOLD };
+Color colors[] = { RED, ORANGE, GOLD, GREEN, BLUE, PURPLE, PINK };
+int paletteSize = sizeof(colors) / sizeof(colors[0]);
 
 Particle particles[PARTICLES_AMOUNT];
 
-void DrawParticle(Particle *particle)
+void DrawParticle(Particle *particle, int index)
 {
-    DrawCircle(particle->p.x, particle->p.y, particle->r, WHITE);
+    DrawCircle(particle->p.x, particle->p.y, particle->r, colors[index % paletteSize]);
 }
 
 void UpdateParticle(Particle *particle)
@@ -37,33 +40,39 @@ void UpdateParticle(Particle *particle)
     float y = particle->p.y;
     float r = particle->r;
     
+    particle->vy += GRAVITY;
+
     // Handle boundary collisions
     if (x < 0 + r)
     {
         particle->p.x = r;
         particle->vx = -particle->vx;
+        particle->vx *= COEFFICIENT_OF_RESTITUTION;
     }
     if (x > WIDTH - r)
     {
         particle->p.x = WIDTH - r;
         particle->vx = -particle->vx;
+        particle->vx *= COEFFICIENT_OF_RESTITUTION;
     }
     if (y < 0 + r)
     {
         particle->p.y = r;
         particle->vy = -particle->vy;
+        particle->vy *= COEFFICIENT_OF_RESTITUTION;
     }
     if (y > HEIGHT - r)
     {
         particle->p.y = HEIGHT - r;
         particle->vy = -particle->vy;
+        particle->vy *= COEFFICIENT_OF_RESTITUTION;
     }
 }
 
 void DrawParticles()
 {
     for (int i = 0; i < PARTICLES_AMOUNT; i++)
-        DrawParticle(particles+i);
+        DrawParticle(particles+i, i);
 }
 
 void UpdateParticles()
@@ -120,6 +129,9 @@ void HandleCollision(int index_a, int index_b)
     float v1_normal_prime = v2_normal;
     float v2_normal_prime = v1_normal;
 
+    v1_normal_prime *= COEFFICIENT_OF_RESTITUTION;
+    v2_normal_prime *= COEFFICIENT_OF_RESTITUTION;
+
     p1->vx = (v1_normal_prime * normal_vector.x) + (v1_tangent * tangent_vector.x);
     p1->vy = (v1_normal_prime * normal_vector.y) + (v1_tangent * tangent_vector.y);
 
@@ -145,7 +157,7 @@ void InitParticles()
 {
     for (int i = 0; i < PARTICLES_AMOUNT; i++)
     {
-        int radius = 10;
+        int radius = 4;
         
         particles[i].r = radius;
         particles[i].p = (Vector2){ (float)GetRandomValue(radius, WIDTH-radius),
@@ -168,7 +180,7 @@ int main(void)
     while (!WindowShouldClose())
     {
         BeginDrawing();
-            ClearBackground(BLACK);
+            ClearBackground(WHITE);
             UpdateParticles();
             CheckAllCollisions();
             DrawParticles();
