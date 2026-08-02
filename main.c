@@ -8,10 +8,15 @@
 #define WIDTH 800
 #define HEIGHT 600
 
+#define SUB_STEPS 4
+
 #define FPS 60
-#define PARTICLES_AMOUNT 2500
-#define GRAVITY 0.1f
-#define COEFFICIENT_OF_RESTITUTION 0.5f
+#define PARTICLES_AMOUNT 100
+#define GRAVITY 0.0f
+#define COEFFICIENT_OF_RESTITUTION 1.0f
+#define EPSILON_MARGIN 0.01f
+
+#define RADIUS 10
 
 typedef struct
 {
@@ -21,7 +26,7 @@ typedef struct
     float vy;   // velocity y
 } Particle;
 
-Color colors[] = { RED, ORANGE, GOLD, GREEN, BLUE, PURPLE, PINK };
+Color colors[] = { YELLOW, ORANGE, RED, GREEN, BLUE, PURPLE, WHITE };
 int paletteSize = sizeof(colors) / sizeof(colors[0]);
 
 Particle particles[PARTICLES_AMOUNT];
@@ -31,58 +36,11 @@ void DrawParticle(Particle *particle, int index)
     DrawCircle(particle->p.x, particle->p.y, particle->r, colors[index % paletteSize]);
 }
 
-void UpdateParticle(Particle *particle)
-{
-    particle->p.x += particle->vx;
-    particle->p.y += particle->vy;
-
-    float x = particle->p.x;
-    float y = particle->p.y;
-    float r = particle->r;
-    
-    particle->vy += GRAVITY;
-
-    // Handle boundary collisions
-    if (x < 0 + r)
-    {
-        particle->p.x = r;
-        particle->vx = -particle->vx;
-        particle->vx *= COEFFICIENT_OF_RESTITUTION;
-    }
-    if (x > WIDTH - r)
-    {
-        particle->p.x = WIDTH - r;
-        particle->vx = -particle->vx;
-        particle->vx *= COEFFICIENT_OF_RESTITUTION;
-    }
-    if (y < 0 + r)
-    {
-        particle->p.y = r;
-        particle->vy = -particle->vy;
-        particle->vy *= COEFFICIENT_OF_RESTITUTION;
-    }
-    if (y > HEIGHT - r)
-    {
-        particle->p.y = HEIGHT - r;
-        particle->vy = -particle->vy;
-        particle->vy *= COEFFICIENT_OF_RESTITUTION;
-    }
-}
-
-void DrawParticles()
-{
-    for (int i = 0; i < PARTICLES_AMOUNT; i++)
-        DrawParticle(particles+i, i);
-}
-
-void UpdateParticles()
-{
-    for (int i = 0; i < PARTICLES_AMOUNT; i++)
-        UpdateParticle(particles+i);
-}
 
 void HandleCollision(int index_a, int index_b)
 {
+    if (index_a == index_b) return;
+
     Particle* p1 = &particles[index_a];
     Particle* p2 = &particles[index_b];
 
@@ -90,53 +48,115 @@ void HandleCollision(int index_a, int index_b)
     float dx = vector_difference.x;
     float dy = vector_difference.y;
 
-    float current_distance = sqrt(pow(dx, 2) + pow(dy, 2));
-    if (current_distance == 0.0f) return;
-
-    float r1 = particles[index_a].r;
-    float r2 = particles[index_b].r;
+    float current_distance = sqrt((dx * dx) + (dy * dy));
+    
+    float r1 = p1->r;
+    float r2 = p2->r;
 
     float total_radius = r1 + r2;
 
-    if (current_distance < total_radius)
+    if (current_distance < EPSILON_MARGIN)
     {
-        float overlap_amount = total_radius - current_distance;
+        float nx = 0;
+        float ny = 1;
 
+        current_distance = EPSILON_MARGIN;
+
+        float overlap_amount = total_radius - current_distance;
+        
+        p1->p.x += nx * (overlap_amount / 2.0f);
+        p1->p.y += ny * (overlap_amount / 2.0f);
+        
+        p2->p.x -= nx * (overlap_amount / 2.0f);
+        p2->p.y -= ny * (overlap_amount / 2.0f);
+    
+        return;
+    }
+    else if (current_distance < total_radius)
+    {
         float nx = dx / current_distance;
         float ny = dy / current_distance;
-
-        particles[index_a].p.x += nx * (overlap_amount / 2.0f);
-        particles[index_a].p.y += ny * (overlap_amount / 2.0f);
-
-        particles[index_b].p.x -= nx * (overlap_amount / 2.0f);
-        particles[index_b].p.y -= ny * (overlap_amount / 2.0f);
-
-        dx = particles[index_a].p.x - particles[index_b].p.x;
-        dy = particles[index_a].p.y - particles[index_b].p.y;
-
-        current_distance = total_radius;
-    }
-
-    Vector2 normal_vector = { (dx / current_distance), (dy / current_distance) };
-    Vector2 tangent_vector = { -normal_vector.y, normal_vector.x };
         
-    float v1_normal = (p1->vx * normal_vector.x) + (p1->vy * normal_vector.y);
-    float v1_tangent = (p1->vx * tangent_vector.x) + (p1->vy * tangent_vector.y);
+        float overlap_amount = total_radius - current_distance;
 
-    float v2_normal = (p2->vx * normal_vector.x) + (p2->vy * normal_vector.y);
-    float v2_tangent = (p2->vx * tangent_vector.x) + (p2->vy * tangent_vector.y);
+        p1->p.x += nx * (overlap_amount / 2.0f);
+        p1->p.y += ny * (overlap_amount / 2.0f);
 
-    float v1_normal_prime = v2_normal;
-    float v2_normal_prime = v1_normal;
+        p2->p.x -= nx * (overlap_amount / 2.0f);
+        p2->p.y -= ny * (overlap_amount / 2.0f);
 
-    v1_normal_prime *= COEFFICIENT_OF_RESTITUTION;
-    v2_normal_prime *= COEFFICIENT_OF_RESTITUTION;
+        Vector2 normal_vector = { nx, ny };
+        Vector2 tangent_vector = { -ny, nx };
 
-    p1->vx = (v1_normal_prime * normal_vector.x) + (v1_tangent * tangent_vector.x);
-    p1->vy = (v1_normal_prime * normal_vector.y) + (v1_tangent * tangent_vector.y);
+        float v1_normal = (p1->vx * normal_vector.x) + (p1->vy * normal_vector.y);
+        float v1_tangent = (p1->vx * tangent_vector.x) + (p1->vy * tangent_vector.y);
 
-    p2->vx = (v2_normal_prime * normal_vector.x) + (v2_tangent * tangent_vector.x);
-    p2->vy = (v2_normal_prime * normal_vector.y) + (v2_tangent * tangent_vector.y);
+        float v2_normal = (p2->vx * normal_vector.x) + (p2->vy * normal_vector.y);
+        float v2_tangent = (p2->vx * tangent_vector.x) + (p2->vy * tangent_vector.y);
+
+        // Check if they are moving toward each other
+        if ((v1_normal - v2_normal) < 0)
+        {
+            float v1_normal_prime = (((1 - COEFFICIENT_OF_RESTITUTION) / 2) * v1_normal) + (((1 + COEFFICIENT_OF_RESTITUTION) / 2) * v2_normal);
+            float v2_normal_prime = (((1 + COEFFICIENT_OF_RESTITUTION) / 2) * v1_normal) + (((1 - COEFFICIENT_OF_RESTITUTION) / 2) * v2_normal);
+        
+            p1->vx = (v1_normal_prime * normal_vector.x) + (v1_tangent * tangent_vector.x);
+            p1->vy = (v1_normal_prime * normal_vector.y) + (v1_tangent * tangent_vector.y);
+
+            p2->vx = (v2_normal_prime * normal_vector.x) + (v2_tangent * tangent_vector.x);
+            p2->vy = (v2_normal_prime * normal_vector.y) + (v2_tangent * tangent_vector.y);
+
+        }
+    }
+}
+
+void UpdateParticle(Particle *particle)
+{
+    particle->vy += GRAVITY;
+
+    particle->p.x += particle->vx;
+    particle->p.y += particle->vy;
+
+    float x = particle->p.x;
+    float y = particle->p.y;
+    float r = particle->r;
+
+    // Handle boundary collisions
+    if (x < 0 + r)
+    {
+        particle->p.x = r;
+        //particle->vx = -particle->vx;
+        
+        particle->vx = -COEFFICIENT_OF_RESTITUTION * particle->vx;
+
+    }
+    if (x > WIDTH - r)
+    {
+        particle->p.x = WIDTH - r;
+        //particle->vx = -particle->vx;
+    
+        particle->vx = -COEFFICIENT_OF_RESTITUTION * particle->vx;
+    }
+    if (y < 0 + r)
+    {
+        particle->p.y = r;
+        //particle->vy = -particle->vy;
+    
+        particle->vy = -COEFFICIENT_OF_RESTITUTION * particle->vy;
+    }
+    if (y > HEIGHT - r)
+    {
+        particle->p.y = HEIGHT - r;
+        //particle->vy = -particle->vy;
+        
+        particle->vy = -COEFFICIENT_OF_RESTITUTION * particle->vy;
+    }
+}
+
+void DrawParticles()
+{
+    for (int i = 0; i < PARTICLES_AMOUNT; i++)
+        DrawParticle(particles+i, i);
 }
 
 void CheckAllCollisions()
@@ -153,11 +173,52 @@ void CheckAllCollisions()
     }
 }
 
+void UpdateParticles()
+{
+    float dt = 1.0f / SUB_STEPS;
+
+    for (int step = 0; step < SUB_STEPS; step++)
+    {
+        for (int i = 0; i < PARTICLES_AMOUNT; i++)
+        {
+            particles[i].vy += GRAVITY * dt;
+
+            particles[i].p.x += particles[i].vx * dt;
+            particles[i].p.y += particles[i].vy * dt;
+
+            float r = particles[i].r;
+
+            if (particles[i].p.x < r)
+            {
+                particles[i].p.x = r;
+                particles[i].vx = -COEFFICIENT_OF_RESTITUTION * particles[i].vx;
+            }
+            if (particles[i].p.x > WIDTH - r)
+            {
+                particles[i].p.x = WIDTH - r;
+                particles[i].vx = -COEFFICIENT_OF_RESTITUTION * particles[i].vx;
+            }
+            if (particles[i].p.y < r)
+            {
+                particles[i].p.y = r;
+                particles[i].vy = -COEFFICIENT_OF_RESTITUTION * particles[i].vy;
+            }
+            if (particles[i].p.y > HEIGHT - r)
+            {
+                particles[i].p.y = HEIGHT - r;
+                particles[i].vy = -COEFFICIENT_OF_RESTITUTION * particles[i].vy;
+            }
+        }
+
+        CheckAllCollisions();
+    }
+}
+
 void InitParticles()
 {
     for (int i = 0; i < PARTICLES_AMOUNT; i++)
     {
-        int radius = 4;
+        int radius = RADIUS;
         
         particles[i].r = radius;
         particles[i].p = (Vector2){ (float)GetRandomValue(radius, WIDTH-radius),
@@ -180,7 +241,7 @@ int main(void)
     while (!WindowShouldClose())
     {
         BeginDrawing();
-            ClearBackground(WHITE);
+            ClearBackground(BLACK);
             UpdateParticles();
             CheckAllCollisions();
             DrawParticles();
