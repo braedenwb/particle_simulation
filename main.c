@@ -11,9 +11,9 @@
 #define SUB_STEPS 4
 
 #define FPS 60
-#define PARTICLES_AMOUNT 100
-#define GRAVITY 0.0f
-#define COEFFICIENT_OF_RESTITUTION 1.0f
+#define PARTICLES_AMOUNT 800
+#define GRAVITY 0.025f
+#define COEFFICIENT_OF_RESTITUTION 0.75f
 #define EPSILON_MARGIN 0.01f
 
 #define RADIUS 10
@@ -243,7 +243,6 @@ int main(void)
         BeginDrawing();
             ClearBackground(BLACK);
             UpdateParticles();
-            CheckAllCollisions();
             DrawParticles();
             DrawFPS(current_fps_x, current_fps_y);
         EndDrawing();
